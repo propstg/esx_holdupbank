@@ -22,14 +22,14 @@ Citizen.CreateThread(function()
 	end
 
 	RegisterNetEvent('esx:setJob')
-    AddEventHandler('esx:setJob', handleJobChange)
+	AddEventHandler('esx:setJob', handleJobChange)
 end)
 
 function handleJobChange(newJob)
-	job = newJob
+	job = newJob.name
 	deleteBlips()
 
-	if newJob ~= 'police' then
+	if job ~= 'police' then
 		createBlips()
 	end
 end
@@ -110,7 +110,7 @@ end)
 
 function deleteBlips()
 	for i = 1, #blips do
-		table.remove(blips)
+		RemoveBlip(table.remove(blips))
 	end
 end
 
@@ -146,7 +146,7 @@ Citizen.CreateThread(function()
 	end
 end)
 
-function drawBankMarkers()
+function drawBankMarkers(pos)
 	for k,v in pairs(Banks) do
 		local pos2 = v.position
 
