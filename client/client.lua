@@ -2,6 +2,8 @@ local holdingup = false
 local bank = ""
 local secondsRemaining = 0
 local blipRobbery = nil
+local job = nil
+local blips = {}
 ESX = nil
 
 Citizen.CreateThread(function()
@@ -9,7 +11,28 @@ Citizen.CreateThread(function()
 		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
 		Citizen.Wait(0)
 	end
+
+	while true do
+        local playerData = ESX.GetPlayerData()
+        if playerData.job ~= nil then
+            handleJobChange(playerData.job)
+            break
+        end
+        Citizen.Wait(10)
+	end
+
+	RegisterNetEvent('esx:setJob')
+    AddEventHandler('esx:setJob', handleJobChange)
 end)
+
+function handleJobChange(newJob)
+	job = newJob
+	deleteBlips()
+
+	if newJob ~= 'police' then
+		createBlips()
+	end
+end
 
 function DisplayHelpText(str)
 	SetTextComponentFormat("STRING")
@@ -85,59 +108,76 @@ Citizen.CreateThread(function()
 	end
 end)
 
-Citizen.CreateThread(function()
-	for k,v in pairs(Banks)do
-		local ve = v.position
-
-		local blip = AddBlipForCoord(ve.x, ve.y, ve.z)
-		SetBlipSprite(blip, 255)--156
-		SetBlipScale(blip, 0.8)
-		SetBlipColour(blip, 75)
-		SetBlipAsShortRange(blip, true)
-		BeginTextCommandSetBlipName("STRING")
-		AddTextComponentString(_U('bank_robbery'))
-		EndTextCommandSetBlipName(blip)
+function deleteBlips()
+	for i = 1, #blips do
+		table.remove(blips)
 	end
-end)
+end
+
+function createBlips()
+	Citizen.CreateThread(function()
+		for k,v in pairs(Banks)do
+			local ve = v.position
+
+			local blip = AddBlipForCoord(ve.x, ve.y, ve.z)
+			SetBlipSprite(blip, 255)--156
+			SetBlipScale(blip, 0.8)
+			SetBlipColour(blip, 75)
+			SetBlipAsShortRange(blip, true)
+			BeginTextCommandSetBlipName("STRING")
+			AddTextComponentString(_U('bank_robbery'))
+			EndTextCommandSetBlipName(blip)
+			table.insert(blips, blip)
+		end
+	end)
+end
 incircle = false
 
 Citizen.CreateThread(function()
 	while true do
-		local pos = GetEntityCoords(GetPlayerPed(-1), true)
+		if job == 'police' then
+			Citizen.Wait(1000)
+		else
+			local pos = GetEntityCoords(GetPlayerPed(-1), true)
+			drawBankMarkers(pos)
+			handleHoldUpIfNeeded(pos)
+			Citizen.Wait(0)
+		end
+	end
+end)
 
-		for k,v in pairs(Banks)do
-			local pos2 = v.position
+function drawBankMarkers()
+	for k,v in pairs(Banks) do
+		local pos2 = v.position
 
-			if(Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) < 15.0)then
-				if not holdingup then
-					DrawMarker(1, v.position.x, v.position.y, v.position.z - 1, 0, 0, 0, 0, 0, 0, 1.0001, 1.0001, 1.5001, 1555, 0, 0,255, 0, 0, 0,0)
+		if(Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) < 15.0) then
+			if not holdingup then
+				DrawMarker(1, v.position.x, v.position.y, v.position.z - 1, 0, 0, 0, 0, 0, 0, 1.0001, 1.0001, 1.5001, 1555, 0, 0,255, 0, 0, 0,0)
 
-					if(Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) < 1.0)then
-						if (incircle == false) then
-							DisplayHelpText(_U('press_to_rob') .. v.nameofbank)
-						end
-						incircle = true
-						if IsControlJustReleased(1, 51) then
-							TriggerServerEvent('esx_holdupbank:rob', k)
-						end
-					elseif(Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) > 1.0)then
-						incircle = false
+				if (Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) < 1.0) then
+					if (incircle == false) then
+						DisplayHelpText(_U('press_to_rob') .. v.nameofbank)
 					end
+					incircle = true
+					if IsControlJustReleased(1, 51) then
+						TriggerServerEvent('esx_holdupbank:rob', k)
+					end
+				elseif (Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) > 1.0) then
+					incircle = false
 				end
 			end
 		end
-
-		if holdingup then
-
-			drawTxt(0.66, 1.44, 1.0,1.0,0.4, _U('robbery_of') .. secondsRemaining .. _U('seconds_remaining'), 255, 255, 255, 255)
-
-			local pos2 = Banks[bank].position
-
-			if(Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) > 7.5)then
-				TriggerServerEvent('esx_holdupbank:toofar', bank)
-			end
-		end
-
-		Citizen.Wait(0)
 	end
-end)
+end
+
+function handleHoldUpIfNeeded(pos)
+	if holdingup then
+		drawTxt(0.66, 1.44, 1.0,1.0,0.4, _U('robbery_of') .. secondsRemaining .. _U('seconds_remaining'), 255, 255, 255, 255)
+
+		local pos2 = Banks[bank].position
+
+		if (Vdist(pos.x, pos.y, pos.z, pos2.x, pos2.y, pos2.z) > 7.5) then
+			TriggerServerEvent('esx_holdupbank:toofar', bank)
+		end
+	end
+end
